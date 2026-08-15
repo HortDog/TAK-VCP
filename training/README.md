@@ -28,6 +28,12 @@ copy training\output\activate_tak\activate_tak.onnx models\
 
 Notes:
 
+- **GPU**: training runs on CUDA automatically when available — pyproject
+  pulls torch from the cu130 index on Windows (verified on the RTX 4060 Ti;
+  `uv run python -c "import torch; print(torch.cuda.is_available())"` should
+  say True). Augmentation/feature extraction stages remain CPU-bound by
+  openwakeword's design.
+
 - `training/phrases.py` is the source of truth for what gets trained; command
   phrases come straight from `tak_vcp.commands`. Each command's adversarial
   negatives are the *other* commands (cross-activation defense); the wake
