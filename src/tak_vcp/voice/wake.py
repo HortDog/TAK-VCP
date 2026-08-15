@@ -1,39 +1,41 @@
 """Layer 1: wake word listener — arms the command layer on the activation phrase.
 
-Target phrase is "TAK active" (custom openwakeword model, training pending —
-see docs/training.md). Until models/tak_active.onnx exists, the pretrained
-"hey_jarvis" model serves as a stand-in so the pipeline can be exercised.
+Target phrase is "activate TAK" (custom openwakeword model — training/ has the
+pipeline). Until models/activate_tak.onnx exists, the pretrained "hey_jarvis"
+model serves as a stand-in so the pipeline can be exercised. Multiple wake
+models can run side by side (any of them triggers) — useful if one phrase
+proves flaky in the field.
 """
 
 import openwakeword
 import openwakeword.utils
 from openwakeword.model import Model
 
-TARGET_WAKE_PHRASE = "tak active"
+TARGET_WAKE_PHRASE = "activate tak"
 STAND_IN_MODEL = "hey_jarvis"
 
 
-def ensure_shared_models(pretrained_name: str = STAND_IN_MODEL) -> None:
-    """Download openwakeword's shared melspectrogram/embedding models (and the
-    named pretrained wake model) into the package cache on first run."""
-    openwakeword.utils.download_models(model_names=[pretrained_name])
+def ensure_shared_models(pretrained_names: "list[str] | None" = None) -> None:
+    """Download openwakeword's shared melspectrogram/embedding models (and any
+    named pretrained wake models) into the package cache on first run."""
+    openwakeword.utils.download_models(model_names=pretrained_names or [STAND_IN_MODEL])
 
 
 class WakeWordListener:
-    """Scores each 80 ms frame against one wake model; caller applies arming logic."""
+    """Scores each 80 ms frame against the wake model(s); any over threshold triggers."""
 
-    def __init__(self, model: str = STAND_IN_MODEL, threshold: float = 0.5):
+    def __init__(self, models: "str | list[str]" = STAND_IN_MODEL, threshold: float = 0.5):
+        names = [models] if isinstance(models, str) else list(models)
         self.threshold = threshold
-        if model in openwakeword.MODELS:
-            ensure_shared_models(model)
-        else:
-            # Custom .onnx path — shared feature models must still exist.
-            ensure_shared_models()
-        self.model = Model(wakeword_models=[model], inference_framework="onnx")
-        self.key = next(iter(self.model.models))
+        pretrained = [n for n in names if n in openwakeword.MODELS]
+        ensure_shared_models(pretrained or None)
+        self.model = Model(wakeword_models=names, inference_framework="onnx")
+        self.keys = list(self.model.models)
+        self.label = " | ".join(self.keys)
 
     def score(self, frame) -> float:
-        return float(self.model.predict(frame)[self.key])
+        scores = self.model.predict(frame)
+        return max(float(scores[k]) for k in self.keys)
 
     def triggered(self, frame) -> bool:
         return self.score(frame) >= self.threshold

@@ -58,7 +58,7 @@ class VoicePipeline:
         state = "listening"
         deadline = 0.0
         captured: "list[np.ndarray]" = []
-        print(f"[voice] listening (wake model: {self.wake.key})", flush=True)
+        print(f"[voice] listening (wake model: {self.wake.label})", flush=True)
         with MicFrames(self.device) as frames:
             for frame in frames:
                 if stop.is_set():
@@ -170,9 +170,11 @@ def main() -> None:
     )
     parser.add_argument(
         "--wake-model",
+        nargs="+",
         default=None,
-        help="pretrained openwakeword name or path to a trained .onnx "
-        "(default: models/tak_active.onnx if present, else hey_jarvis stand-in)",
+        help="one or more wake models: pretrained openwakeword names or paths "
+        "to trained .onnx files — any of them triggers (default: "
+        "models/activate_tak.onnx if present, else hey_jarvis stand-in)",
     )
     parser.add_argument("--wake-threshold", type=float, default=0.5)
     parser.add_argument("--models-dir", default="models", help="trained command models dir")
@@ -201,11 +203,13 @@ def main() -> None:
 
     if args.wake_model is None:
         custom = Path(args.models_dir) / f"{model_stem(TARGET_WAKE_PHRASE)}.onnx"
-        args.wake_model = str(custom) if custom.exists() else STAND_IN_MODEL
-        if args.wake_model == STAND_IN_MODEL:
+        if custom.exists():
+            args.wake_model = [str(custom)]
+        else:
+            args.wake_model = [STAND_IN_MODEL]
             print(
                 f'[voice] no {custom} yet — using "{STAND_IN_MODEL}" as stand-in '
-                f'wake phrase (say "hey jarvis"); see docs/training.md',
+                f'wake phrase (say "hey jarvis"); see training/README.md',
                 flush=True,
             )
 

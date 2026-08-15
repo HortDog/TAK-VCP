@@ -7,32 +7,38 @@ versioned). Filenames follow the phrase-with-underscores convention that
 
 | Phrase | File |
 |---|---|
-| tak active (wake, layer 1) | `models/tak_active.onnx` |
+| activate tak (wake, layer 1) | `models/activate_tak.onnx` |
 | mark contact | `models/mark_contact.onnx` |
 | mark friendly | `models/mark_friendly.onnx` |
 | mark casualty | `models/mark_casualty.onnx` |
 | drop waypoint | `models/drop_waypoint.onnx` |
 
-Until `tak_active.onnx` exists, `tak-vcp-voice` falls back to the pretrained
-`hey_jarvis` stand-in for the wake layer; until command models exist, use
-`--stt-commands` (Whisper + closed-set snap, interim only).
+Until `activate_tak.onnx` exists, `tak-vcp-voice` falls back to the pretrained
+`hey_jarvis` stand-in for the wake layer; until command models exist,
+`--stt-commands` (Whisper + closed-set snap) is the interim command mode.
 
 ## How to train
 
-Use openwakeword's automated pipeline: `notebooks/automatic_model_training.ipynb`
-in the [openWakeWord repo](https://github.com/dscripka/openWakeWord) (designed
-to run on Colab's free GPU tier). Per phrase: enter the target phrase, let it
-generate synthetic TTS samples (Piper) with augmentation, train, and download
-the resulting `.onnx` into `models/` under the name above.
+**Local pipeline (this repo): [training/README.md](../training/README.md).**
+openwakeword's own trainer with the Piper TTS stage replaced by Edge neural
+TTS (Piper's generator doesn't run on Windows). Configs are generated from the
+command vocabulary, so `training/phrases.py` + `tak_vcp/commands.py` stay the
+single source of truth.
 
-Training knobs that matter for this project:
+Alternative: openwakeword's `notebooks/automatic_model_training.ipynb`
+([openWakeWord repo](https://github.com/dscripka/openWakeWord)) on Colab's free
+GPU tier — same result, Piper included; download the `.onnx` into `models/`
+under the names above.
+
+Training signal that matters either way:
 
 - **Noise augmentation**: mix in the actual operating noise profile — vehicle,
-  wind, radio chatter, raised voices — not just the default noise sets.
-- **Real recordings**: synthetic TTS is fine to bootstrap, but commands issued
+  wind, radio chatter, raised voices. Locally: put those recordings in
+  `training/data/background/`.
+- **Real recordings**: synthetic TTS bootstraps fine, but commands issued
   under stress (raised voice, breathing hard, clipped delivery) don't sound
-  like Piper output. Record real operators across the command set and include
-  them before trusting the models operationally.
+  like TTS. Record real operators across the phrase set, add them to the
+  positive clips, retrain before trusting the models operationally.
 
 ## Validation before trusting a model set
 
@@ -43,12 +49,14 @@ Training knobs that matter for this project:
 2. **Cross-activation matrix**: every model vs. recordings of every *other*
    phrase. Small classifier heads bleed on similar phrases — `mark contact`
    vs `mark casualty` share the "mark c…" onset and need explicit testing.
-   Prune or rename phrases that cross-fire.
-3. **Wake phrase false-accepts**: "tak active" repeats the /æk/ syllable
-   (tak-ACK-tive). Test against near-collisions — "attack", "active",
-   "tactic", "TAK" alone. If it bleeds, candidate replacements that keep the
-   spirit: "activate TAK", "TAK online", "TAK wake up" — retrain and re-run
-   the matrix.
+   The generated configs already train each command against the others as
+   adversarial negatives; the matrix verifies it worked.
+3. **Wake phrase false-accepts**: probe "activate tak" against
+   near-collisions — "activate", "attack", "tak" alone, "activate that"
+   (these are in `training/phrases.py:WAKE_ADVERSARIAL`). The runtime supports
+   multiple wake models side by side (`--wake-model a.onnx b.onnx`), so if one
+   phrase proves flaky in the field, train an alternate ("TAK online",
+   "TAK wake up") and run both.
 4. **Thresholds**: tune per-command (`--wake-threshold`, `--command-threshold`
    are global today; per-command thresholds are an open item) on the
    false-accept/false-reject tradeoff — affiliation-setting commands should

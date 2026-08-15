@@ -66,13 +66,14 @@ packets are on the wire at all.
 | `src/tak_vcp/recv_test.py` | Multicast receive debug CLI (`tak-vcp-listen`) — is anything on the wire? |
 | `src/tak_vcp/voice/` | Voice front end: mic capture, wake listener, closed-set classifier, Whisper, orchestrator (`tak-vcp-voice`) |
 | `docs/voice-to-cot-handoff.md` | Design handoff doc |
-| `docs/training.md` | How to train the `tak active` wake model + command models |
+| `training/` | Local model training pipeline (Edge TTS clips → openwakeword trainer) |
+| `docs/training.md` | Training paths + model validation checklist |
 
 ## Voice pipeline (build order step 4)
 
-Wake phrase target: **"TAK active"** — needs a custom openwakeword model
-([docs/training.md](docs/training.md)). Until then the pretrained `hey_jarvis`
-model is the automatic stand-in (say "hey jarvis"), and `--stt-commands` is an
+Wake phrase target: **"activate TAK"** — needs a custom openwakeword model
+(training pipeline: [training/README.md](training/README.md)). Until then the
+pretrained `hey_jarvis` model is the automatic stand-in, and `--stt-commands` is an
 interim command mode (Whisper + closed-vocabulary snap) so the whole loop can
 be tested by voice before any training run:
 
@@ -99,9 +100,11 @@ needs `--device <index>`.
    verified with `tak-vcp-listen` on multicast
 3. ✅ `uv run tak-vcp-send-test --cot-url tcp://127.0.0.1:8087` → marker
    confirmed on the WinTAK map (2026-08-16, same-host)
-4. 🔶 Voice runtime built and verified offline (wake layer scored 0.998 on its
-   phrase / 0.000 on others; Whisper command snap verified on TTS clips).
-   Remaining: train `tak_active` + command models, live-mic validation
+4. 🔶 Voice runtime built; Whisper interim mode validated live on mic.
+   Training pipeline in `training/` (configs, Edge TTS clips, trainer all
+   smoke-tested). Remaining: full training run for `activate_tak` + command
+   models (needs the ~6 GB negative-features download), then classifier-mode
+   live validation
 5. ⬜ Whisper tail transcription + argument parser for parameterized commands
    (transcriber itself is built; parser + arm-window tail capture remain)
 6. ⬜ Vocabulary iteration, confidence thresholds, confirmation UX

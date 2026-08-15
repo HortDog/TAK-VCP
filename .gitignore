@@ -17,6 +17,11 @@ models/
 # faster-whisper / huggingface download caches, if redirected locally
 .cache/
 
+# Training: datasets/outputs are gigabytes, configs are generated (make_configs.py)
+training/data/
+training/output/
+training/config/
+
 # OS noise
 Thumbs.db
 .DS_Store
