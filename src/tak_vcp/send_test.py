@@ -13,38 +13,10 @@ and loopback multicast does not deliver to it (see README transport notes).
 
 import argparse
 import asyncio
-from configparser import ConfigParser
-
-import pytak
 
 from .commands import COMMANDS
 from .cot import build_marker_cot
-from .transport import DEFAULT_COT_URL
-
-
-async def send_one(cot_url: str, event: bytes, local_addr: str | None = None) -> None:
-    """Open the PyTAK protocol for cot_url, send a single event, close."""
-    config = ConfigParser()
-    config["tak-vcp"] = {"COT_URL": cot_url}
-    if local_addr:
-        # Pin which NIC the multicast egresses on — required on multi-homed
-        # hosts (e.g. a VPN adapter present) or the OS may pick the wrong one.
-        config["tak-vcp"]["PYTAK_MULTICAST_LOCAL_ADDR"] = local_addr
-    _reader, writer = await pytak.protocol_factory(config["tak-vcp"])
-
-    # Mirror pytak's TXWorker handling: datagram writers expose an async
-    # send(); stream writers use write()/drain().
-    if hasattr(writer, "send"):
-        await writer.send(event)
-    else:
-        writer.write(event)
-        if hasattr(writer, "drain"):
-            await writer.drain()
-
-    if hasattr(writer, "close"):
-        writer.close()
-    if hasattr(writer, "wait_closed"):
-        await writer.wait_closed()
+from .transport import DEFAULT_COT_URL, send_one
 
 
 def main() -> None:
