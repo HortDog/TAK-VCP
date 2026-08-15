@@ -64,8 +64,33 @@ packets are on the wire at all.
 | `src/tak_vcp/transport.py` | PyTAK worker draining the voice pipeline's queue |
 | `src/tak_vcp/send_test.py` | Hardcoded one-shot send CLI (`tak-vcp-send-test`) |
 | `src/tak_vcp/recv_test.py` | Multicast receive debug CLI (`tak-vcp-listen`) — is anything on the wire? |
-| `src/tak_vcp/voice/` | Wake word / classifier / Whisper-tail layers — **stubs, not yet built** |
+| `src/tak_vcp/voice/` | Voice front end: mic capture, wake listener, closed-set classifier, Whisper, orchestrator (`tak-vcp-voice`) |
 | `docs/voice-to-cot-handoff.md` | Design handoff doc |
+| `docs/training.md` | How to train the `tak active` wake model + command models |
+
+## Voice pipeline (build order step 4)
+
+Wake phrase target: **"TAK active"** — needs a custom openwakeword model
+([docs/training.md](docs/training.md)). Until then the pretrained `hey_jarvis`
+model is the automatic stand-in (say "hey jarvis"), and `--stt-commands` is an
+interim command mode (Whisper + closed-vocabulary snap) so the whole loop can
+be tested by voice before any training run:
+
+```sh
+uv sync --extra voice
+uv run tak-vcp-voice --stt-commands --dry-run                # prints CoT, no WinTAK needed
+uv run tak-vcp-voice --stt-commands --cot-url tcp://127.0.0.1:8087 --lat -23.7 --lon 133.88
+```
+
+Flow: say the wake phrase → "[voice] armed" → say a command (e.g. "mark
+friendly") within the 4 s window → marker dispatches at `--lat/--lon`. Once
+trained models land in `models/`, the closed-set classifier mode engages
+automatically (drop `--stt-commands`) — that's the production design: the
+command verb never goes through open-vocabulary STT.
+
+Check your mic first: `uv run tak-vcp-voice --list-devices` — on this machine
+the default input is a virtual device (Steam Streaming Mic), so a real mic
+needs `--device <index>`.
 
 ## Status vs. build order
 
@@ -74,8 +99,11 @@ packets are on the wire at all.
    verified with `tak-vcp-listen` on multicast
 3. ✅ `uv run tak-vcp-send-test --cot-url tcp://127.0.0.1:8087` → marker
    confirmed on the WinTAK map (2026-08-16, same-host)
-4. ⬜ Layer-1 wake word + layer-2 command classifier feeding the voice queue
+4. 🔶 Voice runtime built and verified offline (wake layer scored 0.998 on its
+   phrase / 0.000 on others; Whisper command snap verified on TTS clips).
+   Remaining: train `tak_active` + command models, live-mic validation
 5. ⬜ Whisper tail transcription + argument parser for parameterized commands
+   (transcriber itself is built; parser + arm-window tail capture remain)
 6. ⬜ Vocabulary iteration, confidence thresholds, confirmation UX
 
 ## Tests
