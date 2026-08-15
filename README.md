@@ -109,8 +109,26 @@ needs `--device <index>`.
    (transcriber itself is built; parser + arm-window tail capture remain)
 6. ⬜ Vocabulary iteration, confidence thresholds, confirmation UX
 
+## Planned
+
+- **Redundant command resolution**: once the command models are trained, run
+  the closed-set classifier and Whisper in parallel and vote — agreement
+  dispatches silently, disagreement (or single-fire) demands confirmation.
+  This is the handoff doc's "cross-check mode", for affiliation-setting
+  commands especially. Training and runtime both already exist; the vote logic
+  and confirmation UX are the new work.
+- Marker position policy: own position / spoken bearing-range tails instead of
+  fixed `--lat/--lon`.
+
 ## Tests
 
 ```sh
 uv run pytest
 ```
+
+## License
+
+GPL-3.0-or-later — see [LICENSE](LICENSE). Copyleft chosen to align with the
+TAK ecosystem (ATAK-CIV and its SDK are GPLv3, which matters for the eventual
+native plugin path). Runtime deps are compatible: pytak and openwakeword are
+Apache-2.0, faster-whisper is MIT.

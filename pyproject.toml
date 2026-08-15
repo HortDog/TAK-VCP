@@ -3,6 +3,8 @@ name = "tak-vcp"
 version = "0.1.0"
 description = "Voice-to-CoT trigger system: wake word + command classifier pipeline that dispatches Cursor on Target events to TAK clients"
 readme = "README.md"
+license = "GPL-3.0-or-later"
+license-files = ["LICENSE"]
 authors = [
     { name = "HortDog", email = "hortonfaint@gmail.com" }
 ]
