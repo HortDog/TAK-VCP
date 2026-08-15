@@ -35,10 +35,10 @@ RATES = ["-25%", "-10%", "+0%", "+15%", "+30%"]
 PITCHES = ["-30Hz", "-15Hz", "+0Hz", "+15Hz", "+30Hz"]
 
 
-def variations(seed: int):
+def variations(seed: int) -> list:
     combos = list(itertools.product(VOICES, RATES, PITCHES))
     random.Random(seed).shuffle(combos)
-    return itertools.cycle(combos)
+    return combos
 
 
 async def synth(text: str, voice: str, rate: str, pitch: str) -> bytes:
@@ -60,6 +60,19 @@ def to_16k_mono(mp3_bytes: bytes) -> np.ndarray:
     return np.concatenate([c[0] for c in chunks if c.size])
 
 
+def trim_silence(samples: np.ndarray, threshold_ratio: float = 0.02, pad: int = 1600) -> np.ndarray:
+    """Strip leading/trailing silence (keep ~100 ms padding). Edge TTS pads
+    clips heavily, and train.py derives its window length from the median clip
+    duration — untrimmed clips push it past the 16-frame shape the ACAV100M
+    negative features use, and training fails on a shape mismatch."""
+    amp = np.abs(samples.astype(np.int32))
+    threshold = max(100, int(amp.max() * threshold_ratio))
+    loud = np.flatnonzero(amp > threshold)
+    if loud.size == 0:
+        return samples
+    return samples[max(0, loud[0] - pad) : min(len(samples), loud[-1] + pad)]
+
+
 def write_wav(path: Path, samples: np.ndarray) -> None:
     with wave.open(str(path), "wb") as w:
         w.setnchannels(1)
@@ -74,17 +87,20 @@ async def generate(texts: "list[str]", out_dir: Path, n: int, seed: int) -> None
     if existing >= n:
         print(f"  {out_dir.name}: {existing} clips already present, skipping")
         return
-    combo = variations(seed)
-    text_cycle = itertools.cycle(texts)
-    for i in range(existing, n):
-        voice, rate, pitch = next(combo)
-        text = next(text_cycle)
-        try:
-            audio = await synth(text, voice, rate, pitch)
-            write_wav(out_dir / f"{i:05d}.wav", to_16k_mono(audio))
-        except Exception as exc:  # noqa: BLE001 — keep generating past flaky requests
-            print(f"  {out_dir.name}: clip {i} failed ({exc}), continuing")
-    print(f"  {out_dir.name}: {len(list(out_dir.glob('*.wav')))} clips")
+    combos = variations(seed)
+    sem = asyncio.Semaphore(6)
+
+    async def make(i: int) -> None:
+        voice, rate, pitch = combos[i % len(combos)]
+        async with sem:
+            try:
+                audio = await synth(texts[i % len(texts)], voice, rate, pitch)
+                write_wav(out_dir / f"{i:05d}.wav", trim_silence(to_16k_mono(audio)))
+            except Exception as exc:  # noqa: BLE001 — keep generating past flaky requests
+                print(f"  {out_dir.name}: clip {i} failed ({exc}), continuing")
+
+    await asyncio.gather(*(make(i) for i in range(existing, n)))
+    print(f"  {out_dir.name}: {len(list(out_dir.glob('*.wav')))} clips", flush=True)
 
 
 async def run(specs: "list[dict]", n: int) -> None:

@@ -17,13 +17,15 @@ uv run python training/generate_samples.py --all --n 400
 #    then put REAL operating-environment noise wavs in training/data/background/
 uv run python training/download_data.py --placeholder-noise
 
-# 4. Augment + train (repeat per config, or loop them)
-uv run python -m openwakeword.train --training_config training/config/activate_tak.yml --augment_clips --train_model
+# 4. Augment + train (repeat per config, or loop them). train_model.py wraps
+#    openwakeword.train with soundfile-based torchaudio I/O (torchaudio >= 2.9
+#    otherwise requires torchcodec/FFmpeg, which is fragile on Windows)
+uv run python training/train_model.py --training_config training/config/activate_tak.yml --augment_clips --train_model
 
-# 5. Deploy: copy the trained .onnx into models/ — the runtime picks it up
-#    automatically (tak-vcp-voice switches off the hey_jarvis stand-in /
-#    classifier mode engages once command models exist)
-copy training\output\activate_tak\activate_tak.onnx models\
+# 5. Deploy: consolidate into models/ (torch exports weights to a sidecar
+#    .onnx.data file; the runtime wants one self-contained .onnx and picks it
+#    up automatically — wake stand-in / STT interim mode switch off)
+uv run python -c "import onnx; onnx.save_model(onnx.load('training/output/activate_tak.onnx'), 'models/activate_tak.onnx', save_as_external_data=False)"
 ```
 
 Notes:

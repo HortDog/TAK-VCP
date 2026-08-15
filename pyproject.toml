@@ -65,4 +65,5 @@ train = [
     "edge-tts>=6.1",
     "av",
     "soundfile",
+    "onnxscript>=0.7.1",
 ]
