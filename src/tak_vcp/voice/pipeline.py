@@ -117,7 +117,11 @@ async def _async_main(args) -> None:
 
     def on_command(phrase: str, confidence: float) -> None:
         event = build_marker_cot(phrase, args.lat, args.lon)
-        print(f"[dispatch] {phrase} ({confidence:.2f})", flush=True)
+        print(
+            f"[dispatch] {phrase} ({confidence:.2f}) -> marker at "
+            f"lat={args.lat} lon={args.lon} (stale in 5 min)",
+            flush=True,
+        )
         loop.call_soon_threadsafe(voice_queue.put_nowait, event)
 
     wake = WakeWordListener(args.wake_model, args.wake_threshold)
