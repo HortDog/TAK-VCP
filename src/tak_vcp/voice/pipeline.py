@@ -116,10 +116,12 @@ async def _async_main(args) -> None:
     loop = asyncio.get_running_loop()
 
     def on_command(phrase: str, confidence: float) -> None:
-        event = build_marker_cot(phrase, args.lat, args.lon)
+        event = build_marker_cot(
+            phrase, args.lat, args.lon, stale_minutes=args.stale_minutes
+        )
         print(
             f"[dispatch] {phrase} ({confidence:.2f}) -> marker at "
-            f"lat={args.lat} lon={args.lon} (stale in 5 min)",
+            f"lat={args.lat} lon={args.lon} (stale in {args.stale_minutes:g} min)",
             flush=True,
         )
         loop.call_soon_threadsafe(voice_queue.put_nowait, event)
@@ -194,6 +196,12 @@ def main() -> None:
     parser.add_argument("--cooldown", type=float, default=2.0, help="seconds ignored after dispatch (debounce)")
     parser.add_argument("--lat", type=float, default=0.0, help="marker latitude")
     parser.add_argument("--lon", type=float, default=0.0, help="marker longitude")
+    parser.add_argument(
+        "--stale-minutes",
+        type=float,
+        default=5.0,
+        help="how long markers persist before TAK expires them (default: 5)",
+    )
     parser.add_argument("--cot-url", default=DEFAULT_COT_URL)
     parser.add_argument("--local-addr", default=None, help="NIC IP to pin multicast egress to")
     parser.add_argument("--dry-run", action="store_true", help="print CoT events instead of sending")
