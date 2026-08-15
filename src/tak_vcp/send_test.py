@@ -3,8 +3,12 @@
 Isolates transport/formatting issues before any audio complexity is added:
 
     uv run tak-vcp-send-test
-    uv run tak-vcp-send-test --command "mark friendly" --lat 38.8895 --lon -77.0353
+    uv run tak-vcp-send-test --command "mark friendly" --lat -23.698 --lon 133.881
+    uv run tak-vcp-send-test --cot-url tcp://127.0.0.1:8087   # WinTAK on this host
     uv run tak-vcp-send-test --cot-url tcp://192.168.1.50:8087
+
+Same-host note: use the TCP form — WinTAK listens on TCP 4242/8087 by default,
+and loopback multicast does not deliver to it (see README transport notes).
 """
 
 import argparse
@@ -18,10 +22,14 @@ from .cot import build_marker_cot
 from .transport import DEFAULT_COT_URL
 
 
-async def send_one(cot_url: str, event: bytes) -> None:
+async def send_one(cot_url: str, event: bytes, local_addr: str | None = None) -> None:
     """Open the PyTAK protocol for cot_url, send a single event, close."""
     config = ConfigParser()
     config["tak-vcp"] = {"COT_URL": cot_url}
+    if local_addr:
+        # Pin which NIC the multicast egresses on — required on multi-homed
+        # hosts (e.g. a VPN adapter present) or the OS may pick the wrong one.
+        config["tak-vcp"]["PYTAK_MULTICAST_LOCAL_ADDR"] = local_addr
     _reader, writer = await pytak.protocol_factory(config["tak-vcp"])
 
     # Mirror pytak's TXWorker handling: datagram writers expose an async
@@ -60,11 +68,17 @@ def main() -> None:
     parser.add_argument(
         "--callsign", default=None, help="marker callsign (default: the UID)"
     )
+    parser.add_argument(
+        "--local-addr",
+        default=None,
+        help="local interface IP to send multicast from (needed on multi-homed "
+        "hosts, e.g. when a VPN adapter would otherwise win the route)",
+    )
     args = parser.parse_args()
 
     event = build_marker_cot(args.command, args.lat, args.lon, callsign=args.callsign)
     print(event.decode())
-    asyncio.run(send_one(args.cot_url, event))
+    asyncio.run(send_one(args.cot_url, event, local_addr=args.local_addr))
     print(
         f"\nSent '{args.command}' marker to {args.cot_url} "
         f"at lat={args.lat} lon={args.lon}."

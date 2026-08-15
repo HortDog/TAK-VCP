@@ -15,7 +15,10 @@ from configparser import ConfigParser
 
 import pytak
 
-DEFAULT_COT_URL = "udp://239.2.3.1:6969"
+# +wo (write-only) matters: without it pytak also binds a receive socket on
+# the port, which fails with WinError 10013 when WinTAK on the same host
+# already holds 6969. This pipeline only ever transmits.
+DEFAULT_COT_URL = "udp+wo://239.2.3.1:6969"
 
 
 class VoiceCommandWorker(pytak.QueueWorker):
@@ -35,11 +38,16 @@ class VoiceCommandWorker(pytak.QueueWorker):
 
 
 async def run_sender(
-    voice_queue: "asyncio.Queue[bytes]", cot_url: str = DEFAULT_COT_URL
+    voice_queue: "asyncio.Queue[bytes]",
+    cot_url: str = DEFAULT_COT_URL,
+    local_addr: str | None = None,
 ) -> None:
     """Run the PyTAK client forever, transmitting anything put on voice_queue."""
     config = ConfigParser()
     config["tak-vcp"] = {"COT_URL": cot_url}
+    if local_addr:
+        # Pin the multicast egress NIC on multi-homed hosts (VPN adapters).
+        config["tak-vcp"]["PYTAK_MULTICAST_LOCAL_ADDR"] = local_addr
     section = config["tak-vcp"]
 
     clitool = pytak.CLITool(section)
