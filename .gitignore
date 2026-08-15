@@ -8,10 +8,8 @@ build/
 .pytest_cache/
 .ruff_cache/
 
-# Trained/downloaded model files — keep large binaries out of git.
-# Un-ignore specific committed models deliberately if needed.
-models/
-*.onnx
+# Deployed models in models/ are versioned deliberately (~215 KB each);
+# training intermediates stay out via training/output/ below.
 *.tflite
 
 # faster-whisper / huggingface download caches, if redirected locally
