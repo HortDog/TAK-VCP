@@ -1,0 +1,35 @@
+[project]
+name = "tak-vcp"
+version = "0.1.0"
+description = "Voice-to-CoT trigger system: wake word + command classifier pipeline that dispatches Cursor on Target events to TAK clients"
+readme = "README.md"
+authors = [
+    { name = "HortDog", email = "hortonfaint@gmail.com" }
+]
+# Pinned to 3.11: openwakeword depends on tflite-runtime on Linux, which has no
+# wheels for Python >= 3.12, so a wider range breaks uv's cross-platform lock.
+requires-python = ">=3.11,<3.12"
+dependencies = [
+    "pytak>=7.5.2",
+]
+
+[project.optional-dependencies]
+# Heavy audio/ML deps, not needed for the transport-only test phase
+# (build order steps 1-3). Install with: uv sync --extra voice
+voice = [
+    "faster-whisper>=1.2.1",
+    "openwakeword>=0.6.0",
+    "sounddevice>=0.5.5",
+]
+
+[project.scripts]
+tak-vcp-send-test = "tak_vcp.send_test:main"
+
+[build-system]
+requires = ["uv_build>=0.11.28,<0.12.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+]
